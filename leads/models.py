@@ -83,3 +83,43 @@ class Lead(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class Payment(models.Model):
+    """A Paystack transaction for the paid Book Consultation session.
+
+    Created as PENDING the moment the frontend asks us for a reference,
+    then flipped to SUCCESS/FAILED only after the backend independently
+    calls Paystack's Verify Transaction endpoint — never on the strength
+    of what the browser reports. See leads/views.py PaymentVerifyView.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SUCCESS = "success", "Success"
+        FAILED = "failed", "Failed"
+
+    lead = models.ForeignKey(
+        Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name="payments"
+    )
+    full_name = models.CharField(max_length=200)
+    email = models.EmailField()
+    phone = models.CharField(max_length=50, blank=True)
+
+    reference = models.CharField(max_length=100, unique=True)
+    amount_kobo = models.PositiveIntegerField(
+        help_text="Amount in kobo (\u20a61 = 100 kobo)."
+    )
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    paystack_payload = models.JSONField(
+        blank=True, null=True, help_text="Raw response from Paystack's verify call, for audit."
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.full_name} \u2013 {self.reference} ({self.status})"
+
+    class Meta:
+        ordering = ["-created_at"]

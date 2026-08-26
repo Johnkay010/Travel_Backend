@@ -1,22 +1,49 @@
 """
 Django settings for hebron_backend project.
 
-This is a prototype configuration: SQLite storage, permissive CORS for local
-React dev, no email/payment integration wired up yet. See README for what to
-harden before production.
+Security-sensitive values (SECRET_KEY, DEBUG, ALLOWED_HOSTS,
+CORS_ALLOWED_ORIGINS, PAYSTACK_SECRET_KEY) read from environment variables
+first and fall back to the values below, which match this project's
+existing Render deployment + local dev setup — so nothing breaks if you
+don't set anything. See README's "Deploying live" section for what to set
+on Render and Netlify, and its "Payments" section for Paystack setup.
 """
 
+import os
+
+import dj_database_url
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def _env_list(name, default):
+    """Read a comma-separated env var into a list, e.g.
+    ALLOWED_HOSTS=example.com,www.example.com
+    Falls back to `default` (a list) if the env var isn't set.
+    """
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 # --- Security -----------------------------------------------------------
-# Prototype-only secret. Replace with an environment variable before deploy.
-SECRET_KEY = "django-insecure-prototype-key-change-me"
+# Set a real SECRET_KEY as an env var in production — never reuse this
+# fallback outside local dev. Generate one with:
+#   python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-prototype-key-change-me")
 
-DEBUG = True
+# IMPORTANT: this is currently True by default, which is fine locally but
+# NOT safe on a public Render URL — it leaks stack traces and settings to
+# any visitor who triggers an error. Set DEBUG=False in Render's
+# Environment tab now if you haven't already.
+DEBUG = os.environ.get("DEBUG", "True") == "True"
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1","travel-backend-bcty.onrender.com"]
+ALLOWED_HOSTS = _env_list(
+    "ALLOWED_HOSTS",
+    ["localhost", "127.0.0.1", "travel-backend-bcty.onrender.com"],
+)
 
 # --- Applications ---------------------------------------------------------
 
@@ -34,6 +61,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Whitenoise serves collected static files (admin CSS, etc.) directly
+    # from Django on Render — must sit right after SecurityMiddleware and
+    # before everything else per whitenoise's own docs.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -41,8 +72,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = "hebron_backend.urls"
@@ -66,13 +95,21 @@ TEMPLATES = [
 WSGI_APPLICATION = "hebron_backend.wsgi.application"
 
 # --- Database ---------------------------------------------------------
-# SQLite for the prototype. Swap for Postgres in production (see README).
-
+# Defaults to local SQLite. If a DATABASE_URL env var is set (e.g. Render's
+# managed Postgres connection string), that takes over instead — you
+# already have psycopg2-binary + dj-database-url installed, so this is
+# ready to go the moment you attach a Postgres instance on Render.
+#
+# Worth doing soon if you're on Render: their free web services have an
+# EPHEMERAL disk, meaning a plain SQLite file gets wiped on every deploy
+# and periodic restart — any leads/payments collected would vanish. Until
+# a real Postgres is attached, treat SQLite-on-Render as demo-only, not a
+# reliable store.
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=600,
+    )
 }
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -88,17 +125,28 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # --- CORS ---------------------------------------------------------
-# Prototype: allow the local Vite dev server. Lock this down to the real
-# domain(s) before production.
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://travel-backend-bcty.onrender.com",
-]
+# Add your deployed FRONTEND's origin here (or via env var) once you have
+# one — e.g. CORS_ALLOWED_ORIGINS=https://your-site.netlify.app. The
+# travel-backend-bcty.onrender.com entry below is the backend's own
+# domain; keep it only if something (e.g. Django admin) calls the API
+# from that same origin.
+CORS_ALLOWED_ORIGINS = _env_list(
+    "CORS_ALLOWED_ORIGINS",
+    [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://travel-backend-bcty.onrender.com",
+    ],
+)
 
 # --- DRF ---------------------------------------------------------
 REST_FRAMEWORK = {
@@ -106,3 +154,15 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.AllowAny",
     ],
 }
+
+# --- Paystack ---------------------------------------------------------
+# Secret key never leaves the backend — used server-side to independently
+# verify a transaction with Paystack after the frontend's popup completes.
+# Get test keys from https://dashboard.paystack.com/#/settings/developer
+PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY", "")
+
+# Single source of truth for the consultation fee, in kobo (\u20a61 = 100 kobo).
+# \u20a6300,000 -> 30,000,000 kobo. The backend re-checks the verified Paystack
+# amount against this on every payment, so the frontend can never pay less
+# than this by tampering with the amount it sends Paystack.
+CONSULTATION_FEE_KOBO = int(os.environ.get("CONSULTATION_FEE_KOBO", "300000"))
