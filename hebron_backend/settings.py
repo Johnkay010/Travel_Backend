@@ -60,12 +60,12 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # Whitenoise serves collected static files (admin CSS, etc.) directly
     # from Django on Render — must sit right after SecurityMiddleware and
     # before everything else per whitenoise's own docs.
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -143,15 +143,19 @@ CORS_ALLOWED_ORIGINS = _env_list(
     "CORS_ALLOWED_ORIGINS",
     [
         "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://travel-backend-bcty.onrender.com",
-        "https://travel-frontend-sepia-nine.vercel.app",
-         "https://travel-frontend-johnkay010.vercel.app",
+    "http://127.0.0.1:5173",
+
+    # Vercel deployments
+    "https://travel-frontend-johnkay010.vercel.app",
+    "https://travel-frontend-ij5qfzn48-johnkay010.vercel.app",
+    "https://travel-frontend-sepia-nine.vercel.app",
         
     ],
 )
 CSRF_TRUSTED_ORIGINS = [
     "https://travel-frontend-johnkay010.vercel.app",
+    "https://travel-frontend-ij5qfzn48-johnkay010.vercel.app",
+    "https://travel-frontend-sepia-nine.vercel.app",
 ]
 
 # --- DRF ---------------------------------------------------------
