@@ -17,6 +17,14 @@ from .serializers import (
     PaymentSerializer,
     PaymentVerifySerializer,
 )
+from django.http import JsonResponse
+
+
+def csrf_test(request):
+    return JsonResponse({
+        "status": "ok",
+        "message": "Render is running this version of the backend",
+    })
 
 PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify/{reference}"
 
