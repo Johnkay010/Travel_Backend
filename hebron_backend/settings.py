@@ -152,11 +152,14 @@ CORS_ALLOWED_ORIGINS = _env_list(
         
     ],
 )
-CSRF_TRUSTED_ORIGINS = [
-    "https://travel-frontend-johnkay010.vercel.app",
-    "https://travel-frontend-ij5qfzn48-johnkay010.vercel.app",
-    "https://travel-frontend-sepia-nine.vercel.app",
-]
+CSRF_TRUSTED_ORIGINS = _env_list(
+    "CSRF_TRUSTED_ORIGINS",
+    [
+        "https://travel-frontend-johnkay010.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+)
 
 # --- DRF ---------------------------------------------------------
 REST_FRAMEWORK = {
