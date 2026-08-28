@@ -6,6 +6,9 @@ from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.permissions import AllowAny
 
 from .models import Lead, Payment
 from .serializers import (
@@ -18,13 +21,13 @@ from .serializers import (
 PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify/{reference}"
 
 
-class LeadCreateView(generics.CreateAPIView):
-    """POST /api/leads/ — used by the Get Started form."""
 
+@method_decorator(csrf_exempt, name="dispatch")
+class LeadCreateView(generics.CreateAPIView):
     queryset = Lead.objects.all()
     serializer_class = LeadSerializer
-
-
+    permission_classes = [AllowAny]
+    authentication_classes = []
 class PaymentInitializeView(APIView):
     """POST /api/payments/initialize/
 
