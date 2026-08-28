@@ -34,6 +34,7 @@ class LeadCreateView(generics.CreateAPIView):
     queryset = Lead.objects.all()
     serializer_class = LeadSerializer
     permission_classes = [AllowAny]
+    authentication_classes = []
 
 
 class PaymentInitializeView(APIView):
