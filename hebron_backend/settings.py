@@ -60,12 +60,12 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # Whitenoise serves collected static files (admin CSS, etc.) directly
     # from Django on Render — must sit right after SecurityMiddleware and
     # before everything else per whitenoise's own docs.
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -143,21 +143,8 @@ CORS_ALLOWED_ORIGINS = _env_list(
     "CORS_ALLOWED_ORIGINS",
     [
         "http://localhost:5173",
-    "http://127.0.0.1:5173",
-
-    # Vercel deployments
-    "https://travel-frontend-johnkay010.vercel.app",
-    "https://travel-frontend-ij5qfzn48-johnkay010.vercel.app",
-    "https://travel-frontend-sepia-nine.vercel.app",
-        
-    ],
-)
-CSRF_TRUSTED_ORIGINS = _env_list(
-    "CSRF_TRUSTED_ORIGINS",
-    [
-        "https://travel-frontend-johnkay010.vercel.app",
-        "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "https://travel-backend-bcty.onrender.com",
     ],
 )
 
@@ -178,4 +165,4 @@ PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY", "")
 # \u20a6300,000 -> 30,000,000 kobo. The backend re-checks the verified Paystack
 # amount against this on every payment, so the frontend can never pay less
 # than this by tampering with the amount it sends Paystack.
-CONSULTATION_FEE_KOBO = int(os.environ.get("CONSULTATION_FEE_KOBO", "300000"))
+CONSULTATION_FEE_KOBO = int(os.environ.get("CONSULTATION_FEE_KOBO", "30000000"))

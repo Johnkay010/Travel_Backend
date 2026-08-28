@@ -1,7 +1,4 @@
 import uuid
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-from rest_framework.permissions import AllowAny
 
 import requests
 from django.conf import settings
@@ -17,24 +14,15 @@ from .serializers import (
     PaymentSerializer,
     PaymentVerifySerializer,
 )
-from django.http import JsonResponse
-
-
-def csrf_test(request):
-    return JsonResponse({
-        "status": "ok",
-        "message": "Render is running this version of the backend",
-    })
 
 PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify/{reference}"
 
 
-@method_decorator(csrf_exempt, name="dispatch")
 class LeadCreateView(generics.CreateAPIView):
+    """POST /api/leads/ — used by the Get Started form."""
+
     queryset = Lead.objects.all()
     serializer_class = LeadSerializer
-    permission_classes = [AllowAny]
-    authentication_classes = []
 
 
 class PaymentInitializeView(APIView):
