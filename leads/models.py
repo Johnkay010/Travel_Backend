@@ -58,12 +58,11 @@ class Lead(models.Model):
     highest_qualification = models.CharField(
         max_length=20, choices=Qualification.choices, blank=True
     )
-    proof_of_funds = models.CharField(max_length=20, choices=Budget.choices, blank=True)
     has_funds_evidence = models.CharField(
-        "Has evidence of stated funds now, or within 30 days",
-        max_length=10,
-        blank=True,
-    )
+    "Has evidence of stated funds now, or within 30 days",
+    max_length=20,
+    blank=True,
+)
     study_timeline = models.CharField(max_length=20, choices=Timeline.choices, blank=True)
     service_needed = models.CharField(
         max_length=20, choices=ServiceNeeded.choices, blank=True
