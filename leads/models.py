@@ -46,7 +46,6 @@ class Lead(models.Model):
 
     class Source(models.TextChoices):
         GET_STARTED = "get_started", "Get Started form"
-        BOOK_CONSULTATION = "book_consultation", "Book Consultation (paid)"
 
     full_name = models.CharField(max_length=200)
     email = models.EmailField()
@@ -58,23 +57,18 @@ class Lead(models.Model):
     highest_qualification = models.CharField(
         max_length=20, choices=Qualification.choices, blank=True
     )
-    proof_of_funds = models.CharField(
-    max_length=20,
-    choices=Budget.choices,
-    blank=True,
-)
+    proof_of_funds = models.CharField(max_length=20, choices=Budget.choices, blank=True)
     has_funds_evidence = models.CharField(
-    "Has evidence of stated funds now, or within 30 days",
-    max_length=20,
-    blank=True,
-)
+        "Has evidence of stated funds now, or within 30 days",
+        max_length=20,
+        blank=True,
+    )
     study_timeline = models.CharField(max_length=20, choices=Timeline.choices, blank=True)
     service_needed = models.CharField(
         max_length=20, choices=ServiceNeeded.choices, blank=True
     )
 
     agreed_terms = models.BooleanField(default=False)
-    agreed_privacy = models.BooleanField(default=False)
     consent_contact = models.BooleanField(default=False)
 
     source = models.CharField(
@@ -89,41 +83,15 @@ class Lead(models.Model):
         ordering = ["-created_at"]
 
 
-class Payment(models.Model):
-    """A Paystack transaction for the paid Book Consultation session.
+class Subscriber(models.Model):
+    """A newsletter subscriber captured via the entry modal or footer form."""
 
-    Created as PENDING the moment the frontend asks us for a reference,
-    then flipped to SUCCESS/FAILED only after the backend independently
-    calls Paystack's Verify Transaction endpoint — never on the strength
-    of what the browser reports. See leads/views.py PaymentVerifyView.
-    """
-
-    class Status(models.TextChoices):
-        PENDING = "pending", "Pending"
-        SUCCESS = "success", "Success"
-        FAILED = "failed", "Failed"
-
-    lead = models.ForeignKey(
-        Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name="payments"
-    )
-    full_name = models.CharField(max_length=200)
-    email = models.EmailField()
-    phone = models.CharField(max_length=50, blank=True)
-
-    reference = models.CharField(max_length=100, unique=True)
-    amount_kobo = models.PositiveIntegerField(
-        help_text="Amount in kobo (\u20a61 = 100 kobo)."
-    )
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
-    paystack_payload = models.JSONField(
-        blank=True, null=True, help_text="Raw response from Paystack's verify call, for audit."
-    )
-
+    name = models.CharField(max_length=200)
+    email = models.EmailField(unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    verified_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return f"{self.full_name} \u2013 {self.reference} ({self.status})"
+        return f"{self.name} <{self.email}>"
 
     class Meta:
         ordering = ["-created_at"]

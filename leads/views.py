@@ -1,136 +1,66 @@
-import uuid
-
-import requests
-from django.conf import settings
-from django.utils import timezone
-from rest_framework import generics, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
+from django.db import IntegrityError
+from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework import generics, status
 from rest_framework.permissions import AllowAny
-from django.http import JsonResponse
+from rest_framework.response import Response
 
-from .models import Lead, Payment
-from .serializers import (
-    LeadSerializer,
-    PaymentInitSerializer,
-    PaymentSerializer,
-    PaymentVerifySerializer,
-)
+from .models import Lead, Subscriber
+from .serializers import LeadSerializer, SubscriberSerializer
+
+
 def csrf_test(request):
-    return JsonResponse({
-        "status": "ok",
-        "message": "Render is running this version of the backend",
-    })
+    return JsonResponse(
+        {"status": "ok", "message": "Render is running this version of the backend"}
+    )
 
-PAYSTACK_VERIFY_URL = "https://api.paystack.co/transaction/verify/{reference}"
 
 @method_decorator(csrf_exempt, name="dispatch")
 class LeadCreateView(generics.CreateAPIView):
+    """POST /api/leads/ — used by the Get Started form.
+
+    csrf_exempt + AllowAny + no authentication_classes: this endpoint is
+    public (no login), and Django's session-based CSRF check doesn't apply
+    to it — kept exactly as configured to fix the cross-origin POST issue
+    on Render.
+    """
+
     queryset = Lead.objects.all()
     serializer_class = LeadSerializer
     permission_classes = [AllowAny]
     authentication_classes = []
-class PaymentInitializeView(APIView):
-    """POST /api/payments/initialize/
 
-    Called right before the frontend opens the Paystack popup. Creates a
-    PENDING Payment row with a backend-generated reference and the
-    backend's own fee amount (settings.CONSULTATION_FEE_KOBO) — the
-    frontend uses exactly these values to open Paystack, it never invents
-    its own amount or reference.
+
+@method_decorator(csrf_exempt, name="dispatch")
+class SubscriberCreateView(generics.CreateAPIView):
+    """POST /api/subscribe/ — used by both the entry modal and the footer
+    subscription form. Same public-endpoint CSRF setup as LeadCreateView.
+
+    Duplicate emails are normally caught by SubscriberSerializer's
+    UniqueValidator before anything touches the database, returning a
+    clean 400 with {"email": ["This email is already subscribed."]}. The
+    try/except below is a second line of defense against a race condition
+    (two near-simultaneous submissions for the same new email both passing
+    validation before either INSERT completes) — without it, that edge
+    case would surface as a raw 500 IntegrityError instead of the same
+    friendly 400 response.
     """
 
-    def post(self, request):
-        serializer = PaymentInitSerializer(data=request.data)
+    queryset = Subscriber.objects.all()
+    serializer_class = SubscriberSerializer
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        reference = f"HAE-{uuid.uuid4().hex[:14]}"
-        payment = Payment.objects.create(
-            full_name=serializer.validated_data["full_name"],
-            email=serializer.validated_data["email"],
-            phone=serializer.validated_data["phone"],
-            reference=reference,
-            amount_kobo=settings.CONSULTATION_FEE_KOBO,
-            status=Payment.Status.PENDING,
-        )
-        return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
-
-
-class PaymentVerifyView(APIView):
-    """POST /api/payments/verify/
-
-    Called after the Paystack popup's callback fires with a reference.
-    Never trusts the browser's report of success — independently asks
-    Paystack's servers to confirm the transaction, and cross-checks the
-    verified amount against what we expected before marking it paid.
-    """
-
-    def post(self, request):
-        serializer = PaymentVerifySerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        reference = serializer.validated_data["reference"]
-
         try:
-            payment = Payment.objects.get(reference=reference)
-        except Payment.DoesNotExist:
+            self.perform_create(serializer)
+        except IntegrityError:
             return Response(
-                {"detail": "Unknown payment reference."}, status=status.HTTP_404_NOT_FOUND
+                {"email": ["This email is already subscribed."]},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-
-        # Idempotent: if we already confirmed this one, don't re-hit Paystack.
-        if payment.status == Payment.Status.SUCCESS:
-            return Response(PaymentSerializer(payment).data)
-
-        if not settings.PAYSTACK_SECRET_KEY:
-            return Response(
-                {"detail": "Payment verification is not configured on the server yet."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        try:
-            paystack_response = requests.get(
-                PAYSTACK_VERIFY_URL.format(reference=reference),
-                headers={"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"},
-                timeout=15,
-            )
-            payload = paystack_response.json()
-        except (requests.RequestException, ValueError):
-            return Response(
-                {"detail": "Could not reach Paystack to verify this payment. Try again."},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        data = payload.get("data") or {}
-        paid_successfully = (
-            payload.get("status") is True
-            and data.get("status") == "success"
-            and data.get("currency") == "NGN"
-            and data.get("amount") == payment.amount_kobo
-        )
-
-        payment.paystack_payload = payload
-
-        if not paid_successfully:
-            payment.status = Payment.Status.FAILED
-            payment.save()
-            reason = data.get("gateway_response") or "Payment could not be verified."
-            return Response({"detail": reason}, status=status.HTTP_400_BAD_REQUEST)
-
-        payment.status = Payment.Status.SUCCESS
-        payment.verified_at = timezone.now()
-
-        lead = Lead.objects.create(
-            full_name=payment.full_name,
-            email=payment.email,
-            phone=payment.phone,
-            source=Lead.Source.BOOK_CONSULTATION,
-            agreed_terms=True,
-            agreed_privacy=True,
-            consent_contact=True,
-        )
-        payment.lead = lead
-        payment.save()
-
-        return Response(PaymentSerializer(payment).data)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)

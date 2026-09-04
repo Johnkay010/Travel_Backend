@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Lead, Payment
+from .models import Lead, Subscriber
 
 
 @admin.register(Lead)
@@ -18,17 +18,7 @@ class LeadAdmin(admin.ModelAdmin):
     search_fields = ("full_name", "email", "phone")
 
 
-@admin.register(Payment)
-class PaymentAdmin(admin.ModelAdmin):
-    list_display = (
-        "full_name",
-        "email",
-        "reference",
-        "amount_kobo",
-        "status",
-        "created_at",
-        "verified_at",
-    )
-    list_filter = ("status",)
-    search_fields = ("full_name", "email", "reference")
-    readonly_fields = ("paystack_payload",)
+@admin.register(Subscriber)
+class SubscriberAdmin(admin.ModelAdmin):
+    list_display = ("name", "email", "created_at")
+    search_fields = ("name", "email")

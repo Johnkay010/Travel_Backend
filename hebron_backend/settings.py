@@ -2,11 +2,11 @@
 Django settings for hebron_backend project.
 
 Security-sensitive values (SECRET_KEY, DEBUG, ALLOWED_HOSTS,
-CORS_ALLOWED_ORIGINS, PAYSTACK_SECRET_KEY) read from environment variables
+CORS_ALLOWED_ORIGINS) read from environment variables
 first and fall back to the values below, which match this project's
 existing Render deployment + local dev setup — so nothing breaks if you
 don't set anything. See README's "Deploying live" section for what to set
-on Render and Netlify, and its "Payments" section for Paystack setup.
+on Render and Netlify.
 """
 
 import os
@@ -164,15 +164,3 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.AllowAny",
     ],
 }
-
-# --- Paystack ---------------------------------------------------------
-# Secret key never leaves the backend — used server-side to independently
-# verify a transaction with Paystack after the frontend's popup completes.
-# Get test keys from https://dashboard.paystack.com/#/settings/developer
-PAYSTACK_SECRET_KEY = os.environ.get("PAYSTACK_SECRET_KEY", "")
-
-# Single source of truth for the consultation fee, in kobo (\u20a61 = 100 kobo).
-# \u20a6300,000 -> 30,000,000 kobo. The backend re-checks the verified Paystack
-# amount against this on every payment, so the frontend can never pay less
-# than this by tampering with the amount it sends Paystack.
-CONSULTATION_FEE_KOBO = int(os.environ.get("CONSULTATION_FEE_KOBO", "30000000"))

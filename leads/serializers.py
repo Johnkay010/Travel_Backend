@@ -1,6 +1,7 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 
-from .models import Lead, Payment
+from .models import Lead, Subscriber
 
 
 class LeadSerializer(serializers.ModelSerializer):
@@ -18,7 +19,6 @@ class LeadSerializer(serializers.ModelSerializer):
             "study_timeline",
             "service_needed",
             "agreed_terms",
-            "agreed_privacy",
             "consent_contact",
             "source",
             "created_at",
@@ -27,52 +27,35 @@ class LeadSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         # The copy doc marks these three checkboxes "Required to Submit" on
-        # the Get Started page. Book Consultation submissions reuse this
-        # serializer with source=book_consultation and a lighter field set,
-        # so only enforce the checkboxes for the full intake form.
-        if attrs.get("source", Lead.Source.GET_STARTED) == Lead.Source.GET_STARTED:
-            missing = [
-                field
-                for field in ("agreed_terms", "agreed_privacy", "consent_contact")
-                if not attrs.get(field)
-            ]
-            if missing:
-                raise serializers.ValidationError(
-                    {field: "This must be accepted to submit." for field in missing}
-                )
+        # the Get Started page.
+        missing = [
+            field
+            for field in ("agreed_terms",  "consent_contact")
+            if not attrs.get(field)
+        ]
+        if missing:
+            raise serializers.ValidationError(
+                {field: "This must be accepted to submit." for field in missing}
+            )
         return attrs
 
 
-class PaymentInitSerializer(serializers.Serializer):
-    """Input for POST /api/payments/initialize/ — just enough to open the
-    Paystack popup and create a PENDING Payment row to reconcile against.
-    """
-
-    full_name = serializers.CharField(max_length=200)
-    email = serializers.EmailField()
-    phone = serializers.CharField(max_length=50)
-
-
-class PaymentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Payment
-        fields = [
-            "id",
-            "full_name",
-            "email",
-            "phone",
-            "reference",
-            "amount_kobo",
-            "status",
-            "created_at",
-            "verified_at",
+class SubscriberSerializer(serializers.ModelSerializer):
+    # Subscriber.email already has unique=True, which DRF would enforce with
+    # its own default UniqueValidator message. Overriding it here gives a
+    # clean, predictable 400 payload the frontend can key off directly:
+    # {"email": ["This email is already subscribed."]} — no IntegrityError
+    # ever reaches the database, since DRF validates before saving.
+    email = serializers.EmailField(
+        validators=[
+            UniqueValidator(
+                queryset=Subscriber.objects.all(),
+                message="This email is already subscribed.",
+            )
         ]
-        read_only_fields = fields
+    )
 
-
-class PaymentVerifySerializer(serializers.Serializer):
-    """Input for POST /api/payments/verify/ — the reference Paystack's
-    popup handed back to the browser after the user paid.
-    """
-
-    reference = serializers.CharField(max_length=100)
+    class Meta:
+        model = Subscriber
+        fields = ["id", "name", "email", "created_at"]
+        read_only_fields = ["id", "created_at"]
