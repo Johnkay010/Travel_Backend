@@ -146,6 +146,8 @@ CORS_ALLOWED_ORIGINS = _env_list(
         "http://127.0.0.1:5173",
 
         "https://hebronalliance.netlify.app",
+    "https://hebronallianceedu.com",
+    "https://www.hebronallianceedu.com",
     ],
 )
 CSRF_TRUSTED_ORIGINS = _env_list(
