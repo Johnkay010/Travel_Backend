@@ -59,13 +59,11 @@ INSTALLED_APPS = [
     "leads",
 ]
 
+
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    # Whitenoise serves collected static files (admin CSS, etc.) directly
-    # from Django on Render — must sit right after SecurityMiddleware and
-    # before everything else per whitenoise's own docs.
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
